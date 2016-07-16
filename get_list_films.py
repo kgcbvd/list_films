@@ -5,9 +5,15 @@ from bs4 import BeautifulSoup
 URL = 'http://www.fast-torrent.ru/most-films/'
 
 def get_html(url):
-    return requests.get(url).content.decode(encoding='utf-8')
+    """получение html кода страницы"""
+    r = requests.get(url)
+    if r.status_code == 200:
+        return r.content.decode(encoding='utf-8')
+    else:
+        return ''
 
 def parse_html(content):
+    """извлечение необходимых данных из html кода страницы"""
     result_list = []
     soup = BeautifulSoup(content, "html.parser")
     films_content = soup.find_all("div", itemtype="http://schema.org/Movie")
@@ -27,11 +33,19 @@ def parse_html(content):
     return result_list
 
 def work(number):
+    """вызов функции parse_html для страницы номер number"""
     url = "{0}{1}.html".format(URL, number)
     return parse_html(get_html(url))
 
-if __name__ == '__main__':
+def main():
+    """основная функция, которая получает необходимую информация о фильмах с первых 10 страниц"""
     pool = Pool(10)
     res = pool.map(work, range(1, 11))
-    for i in res:
-        print(i)
+    for page in res:
+        for film in page:
+            print(film)
+    pool.close()
+    pool.join()
+
+if __name__ == '__main__':
+    main()
