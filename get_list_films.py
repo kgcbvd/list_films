@@ -1,6 +1,7 @@
 import requests
 from multiprocessing.dummy import Pool
 from bs4 import BeautifulSoup
+import sqlite3
 
 URL = 'http://www.fast-torrent.ru/most-films/'
 
@@ -37,13 +38,36 @@ def work(number):
     url = "{0}{1}.html".format(URL, number)
     return parse_html(get_html(url))
 
+def save_db(data):
+    """функция открывает файл films.db и добавляет в него информацию о фильме, если его нет или обновляет информацию"""
+    with sqlite3.connect('films.db') as conn:
+        c = conn.cursor()
+        c.execute("SELECT film_name FROM films")
+        films_name_db = [name[0] for name in c.fetchall()]
+        for page_films in data:
+            for film in page_films:
+                if film['name'] not in films_name_db:
+                    c.execute("INSERT INTO films VALUES (?, ?, ?, ?, ?)",
+                              (film['name'], film['year'], film['average_votes'],
+                               film['votes'], film['recommend_count']))
+                    conn.commit()
+                    print("фильм {0} добавлен".format(film['name']))
+                else:
+                    c.execute("SELECT votes, recommend_count FROM films WHERE film_name = ?", (film['name'],))
+                    votes, recommend_count = c.fetchall()[0]
+                    if film['votes'] != int(votes) or film['recommend_count'] != int(recommend_count):
+                        c.execute("UPDATE films SET average_votes = ?, votes = ?, recommend_count = ? "
+                                  "WHERE film_name=?",
+                                  (film['average_votes'], film['votes'], film['recommend_count'], film['name']))
+                        conn.commit()
+                        print("информация о фильме \"{0}\" обновлена".format(film['name']))
+    return ''
+
 def main():
     """основная функция, которая получает необходимую информация о фильмах с первых 10 страниц"""
     pool = Pool(10)
     res = pool.map(work, range(1, 11))
-    for page in res:
-        for film in page:
-            print(film)
+    save_db(res)
     pool.close()
     pool.join()
 
