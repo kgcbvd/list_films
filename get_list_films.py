@@ -2,6 +2,7 @@ import requests
 from multiprocessing.dummy import Pool
 from bs4 import BeautifulSoup
 import sqlite3
+import os.path
 
 URL = 'http://www.fast-torrent.ru/most-films/'
 
@@ -39,7 +40,16 @@ def work(number):
     return parse_html(get_html(url))
 
 def save_db(data):
-    """функция открывает файл films.db и добавляет в него информацию о фильме, если его нет или обновляет информацию"""
+    """функция открывает файл films.db и добавляет в него информацию о фильме, если его нет или обновляет информацию,
+    если файл не существует, то создаем его и таблицу films"""
+    if not os.path.isfile('films.db'):
+        with sqlite3.connect('films.db') as conn:
+            c = conn.cursor()
+            c.execute("CREATE TABLE films "
+                      "(film_name TEXT NOT NULL, year TEXT NOT NULL, average_votes DOUBLE DEFAULT 0.0, "
+                      "votes INT DEFAULT 0, recommend_count INT DEFAULT 0)")
+            conn.commit()
+
     with sqlite3.connect('films.db') as conn:
         c = conn.cursor()
         c.execute("SELECT film_name FROM films")
@@ -51,7 +61,7 @@ def save_db(data):
                               (film['name'], film['year'], film['average_votes'],
                                film['votes'], film['recommend_count']))
                     conn.commit()
-                    print("фильм {0} добавлен".format(film['name']))
+                    print("фильм \"{0}\" добавлен".format(film['name']))
                 else:
                     c.execute("SELECT votes, recommend_count FROM films WHERE film_name = ?", (film['name'],))
                     votes, recommend_count = c.fetchall()[0]
@@ -64,7 +74,7 @@ def save_db(data):
     return ''
 
 def main():
-    """основная функция, которая получает необходимую информация о фильмах с первых 10 страниц"""
+    """Функция, которая получает необходимую информация о фильмах с первых 10 страниц"""
     pool = Pool(10)
     res = pool.map(work, range(1, 11))
     save_db(res)
